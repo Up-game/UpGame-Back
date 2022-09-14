@@ -279,7 +279,7 @@ packages:
     description:
       path: "."
       ref: main
-      resolved-ref: "2e7583946493dcfd22ad9fb90fc9f3eb753f857a"
+      resolved-ref: "3661ed80833ba39e9cf2572df753da125bcba7d7"
       url: "https://github.com/Up-game/NetFramework.git"
     source: git
     version: "1.0.0"
