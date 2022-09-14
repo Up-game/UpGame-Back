@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'package:dcli/dcli.dart';
 import 'package:netframework/netframework.dart';
@@ -28,45 +29,52 @@ void main(List<String> args) async {
       serverIsolate, [receivePort.sendPort, loggingPort.sendPort]);
   final SendPort sendPort = await receivePort.first;
 
-  loggingPort.listen((message) {
+  final loggingSubscription = loggingPort.listen((message) {
     print(message);
   });
 
   bool exit = false;
   while (!exit) {
-    Future.delayed(Duration(seconds: 1));
-    print('1: Start server');
-    print('2: Stop server');
-    print('3: Restart server');
-    print('4: Show logs');
-    print('5: Exit');
-    String action = ask('number:', required: true, validator: Ask.integer);
-    switch (action) {
-      case '1':
+    String selected = menu(
+      options: [
+        'Start server',
+        'Stop server',
+        'Restart server',
+        'Show logs',
+        'Exit',
+      ],
+      prompt: 'Your selection:',
+    );
+    print(selected);
+    switch (selected) {
+      case 'Start server':
         sendPort.send(CliCommands.start);
         break;
-      case '2':
+      case 'Stop server':
         sendPort.send(CliCommands.stop);
         break;
-      case '3':
+      case 'Restart server':
         sendPort.send(CliCommands.restart);
         break;
-      case '4':
+      case 'Show logs':
         sendPort.send(CliCommands.showLog);
         break;
-      case '5':
+      case 'Exit':
         sendPort.send(CliCommands.exit);
         exit = true;
         break;
     }
+    await Future.delayed(Duration(seconds: 1));
   }
   receivePort.close();
   loggingPort.close();
+  await loggingSubscription.cancel();
   print('Exiting...');
 }
 
 void serverIsolate(List<SendPort> ports) async {
   // Setup
+  bool quit = false;
   SendPort sendPort = ports[0];
   SendPort loggingPort = ports[1];
   final ReceivePort receivePort = ReceivePort();
@@ -75,6 +83,7 @@ void serverIsolate(List<SendPort> ports) async {
   final UpServer server = UpServer(6000, printer: ((level, actor, message) {
     switch (level) {
       case LogLevel.none:
+        break;
       case LogLevel.info:
       case LogLevel.debug:
       case LogLevel.verbose:
@@ -90,7 +99,8 @@ void serverIsolate(List<SendPort> ports) async {
   }));
 
   // listen to Cli commands
-  receivePort.listen((message) async {
+  late final StreamSubscription<dynamic> commandSubscription;
+  commandSubscription = receivePort.listen((message) async {
     final CliCommands command = message as CliCommands;
 
     switch (command) {
@@ -110,13 +120,15 @@ void serverIsolate(List<SendPort> ports) async {
       case CliCommands.hideLog:
         break;
       case CliCommands.exit:
+        quit = true;
         await server.stop();
+        commandSubscription.cancel();
         receivePort.close();
         break;
     }
   });
 
-  while (true) {
+  while (!quit) {
     await server.update(blocking: true);
   }
 }
